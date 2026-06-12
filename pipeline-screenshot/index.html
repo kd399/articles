@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ServiceNow · Source Control + App Repo Pipeline</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+:root {
+  --bg:#0a0c10;--surface:#13161c;--card:#191d25;--border:#252b35;--border2:#2f3844;
+  --blue:#4d9de0;--blue-dim:#0f2035;--green:#3fb950;--green-dim:#0d2b14;
+  --amber:#d29922;--amber-dim:#2a1f00;--purple:#a371f7;--purple-dim:#1e1535;
+  --red:#f85149;--red-dim:#2d0c0c;--cyan:#39d0c4;--orange:#f0883e;--orange-dim:#2d1500;
+  --teal:#26c6a2;--teal-dim:#082820;--text:#cdd9e5;--muted:#768390;--faint:#3d4450;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);padding:32px 36px 44px;width:1160px;}
+.header{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);}
+.header-icon{width:44px;height:44px;background:var(--blue-dim);border:1px solid var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.header-title{font-family:var(--mono);font-size:16px;font-weight:700;}
+.header-sub{font-size:11.5px;color:var(--muted);margin-top:3px;}
+.header-right{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+.hbadge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;border:1px solid;}
+.hb-blue{background:var(--blue-dim);border-color:#1d3e5c;color:var(--blue);}
+.hb-green{background:var(--green-dim);border-color:#1a4020;color:var(--green);}
+.hb-amber{background:var(--amber-dim);border-color:#3d2e00;color:var(--amber);}
+.hb-teal{background:var(--teal-dim);border-color:#0d3530;color:var(--teal);}
+.hb-red{background:var(--red-dim);border-color:#4a1515;color:var(--red);}
+.slabel{font-family:var(--mono);font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:10px;margin:18px 0 10px;}
+.slabel::after{content:'';flex:1;height:1px;background:var(--border);}
+.slabel .pill{font-size:9px;padding:2px 8px;border-radius:20px;background:var(--surface);border:1px solid var(--border2);color:var(--muted);}
+/* INSIGHT BOX */
+.insight-box{display:flex;gap:14px;align-items:flex-start;padding:13px 16px;border-radius:8px;background:var(--red-dim);border:1px solid var(--red);margin-bottom:16px;}
+.insight-icon{font-size:18px;flex-shrink:0;}
+.insight-body{font-size:11.5px;color:var(--muted);line-height:1.6;}
+.insight-body strong{color:var(--red);display:block;margin-bottom:3px;font-size:12px;}
+.insight-body code{font-family:var(--mono);font-size:10.5px;color:var(--cyan);background:var(--card);padding:1px 5px;border-radius:3px;}
+/* BIM */
+.bim-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.bim-card{border-radius:8px;overflow:hidden;border:1px solid var(--border);}
+.bim-head{padding:10px 13px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.bim-body{padding:10px 13px;display:flex;flex-direction:column;gap:5px;background:var(--card);}
+.bim-row{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);padding:4px 7px;border-radius:4px;background:var(--surface);}
+.bim-row .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.bim-chip{margin-left:auto;font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid;}
+.bc-feature .bim-head{background:var(--blue-dim);color:var(--blue);}
+.bc-feature .dot{background:var(--blue);}
+.bc-feature .bim-chip{background:var(--blue-dim);border-color:#1d3e5c;color:var(--blue);}
+.bc-dev .bim-head{background:var(--purple-dim);color:var(--purple);}
+.bc-dev .dot{background:var(--purple);}
+.bc-dev .bim-chip{background:var(--purple-dim);border-color:#2d1e4e;color:var(--purple);}
+.bc-test .bim-head{background:var(--amber-dim);color:var(--amber);}
+.bc-test .dot{background:var(--amber);}
+.bc-test .bim-chip{background:var(--amber-dim);border-color:#3d2e00;color:var(--amber);}
+.bc-prod .bim-head{background:var(--teal-dim);color:var(--teal);}
+.bc-prod .dot{background:var(--teal);}
+.bc-prod .bim-chip{background:var(--teal-dim);border-color:#0d3530;color:var(--teal);}
+/* FLOW */
+.flow-outer{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+.flow-strip{display:flex;align-items:center;gap:0;}
+.fs-node{flex:1;text-align:center;padding:0 5px;}
+.fs-env{font-size:11px;font-weight:700;font-family:var(--mono);margin-bottom:3px;}
+.fs-branch{font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:12px;border:1px solid;display:inline-block;margin-bottom:4px;}
+.fs-method{font-size:9.5px;color:var(--faint);line-height:1.4;}
+.fs-arrow{flex-shrink:0;padding:0 3px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.fs-arrow-label{font-family:var(--mono);font-size:9px;color:var(--faint);text-align:center;white-space:nowrap;}
+.flow-divider{margin:12px 0 8px;display:flex;align-items:center;gap:12px;}
+.flow-divider-line{flex:1;height:1px;background:var(--border);}
+.flow-divider-label{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:4px 12px;border-radius:20px;border:1px solid;white-space:nowrap;}
+.fdl-sc{background:var(--blue-dim);border-color:#1d3e5c;color:var(--blue);}
+.fdl-ar{background:var(--teal-dim);border-color:#0d3530;color:var(--teal);}
+.app-repo-node{background:var(--teal-dim);border:1px solid var(--teal);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;align-items:center;text-align:center;min-width:130px;}
+.app-repo-node .arn-title{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--teal);margin-bottom:4px;}
+.app-repo-node .arn-sub{font-size:10px;color:var(--muted);line-height:1.4;}
+/* GIT GRAPH */
+.git-graph{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 22px 14px;}
+.gg-legend{display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;}
+.gg-legend-item{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;color:var(--muted);}
+.gg-legend-line{width:22px;height:2px;border-radius:2px;}
+/* SCENARIOS */
+.scenario-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.sc-card{border-radius:8px;overflow:hidden;border:1px solid var(--border);}
+.sc-head{padding:9px 11px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;}
+.sc-head-icon{font-size:14px;}
+.sc-body{padding:9px 11px;background:var(--card);display:flex;flex-direction:column;gap:4px;}
+.sc-row{font-size:10.5px;color:var(--muted);padding:3px 6px;border-radius:4px;background:var(--surface);line-height:1.4;}
+.sc-row code{font-family:var(--mono);font-size:9.5px;color:var(--cyan);}
+.sc-footer{padding:7px 11px;font-family:var(--mono);font-size:9.5px;border-top:1px solid var(--border);background:var(--card);}
+.sc-happy .sc-head{background:var(--green-dim);color:var(--green);}
+.sc-happy .sc-footer{color:var(--green);}
+.sc-ci .sc-head{background:var(--amber-dim);color:var(--amber);}
+.sc-ci .sc-footer{color:var(--amber);}
+.sc-defect .sc-head{background:var(--orange-dim);color:var(--orange);}
+.sc-defect .sc-footer{color:var(--orange);}
+.sc-prod .sc-head{background:var(--red-dim);color:var(--red);}
+.sc-prod .sc-footer{color:var(--red);}
+.sc-hotfix .sc-head{background:var(--purple-dim);color:var(--purple);}
+.sc-hotfix .sc-footer{color:var(--purple);}
+/* RULES */
+.rules-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.rule-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;}
+.rule-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.rule-title{font-size:11.5px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.rule-body{font-size:10.5px;color:var(--muted);line-height:1.5;}
+.rule-body code{font-family:var(--mono);font-size:9.5px;color:var(--cyan);}
+/* FOOTER */
+.footer{margin-top:16px;padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.footer-legend{display:flex;flex-wrap:wrap;gap:14px;}
+.fl-item{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted);}
+.fl-dot{width:7px;height:7px;border-radius:50%;}
+.footer-note{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--faint);}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🔗</div>
+  <div>
+    <div class="header-title">ServiceNow · Hybrid CI/CD Pipeline — Source Control (DEV/TEST) + App Repository (PROD)</div>
+    <div class="header-sub">Source Control with apply_remote_changes for DEV &amp; TEST · App Repository Publish → Install for PROD · GitHub Actions sncicd-* actions</div>
+  </div>
+  <div class="header-right">
+    <span class="hbadge hb-blue">Source Control — DEV/TEST</span>
+    <span class="hbadge hb-teal">App Repo — PROD only</span>
+    <span class="hbadge hb-green">ATF Suites</span>
+    <span class="hbadge hb-amber">Change Management</span>
+    <span class="hbadge hb-red">SN Official Limitation</span>
+  </div>
+</div>
+
+<div class="insight-box">
+  <div class="insight-icon">🚫</div>
+  <div class="insight-body">
+    <strong>ServiceNow Official Limitations — 3 Hard Constraints You Cannot Work Around</strong>
+    <span style="display:block;margin-top:6px;margin-bottom:2px;">① <strong style="color:var(--red)">Source Control NOT on PROD.</strong> Official docs: <em>"Source control integration does not support managing applications on a production instance."</em> Using <code>apply_remote_changes</code> on PROD triggers cascade deletes of configuration-linked data — silent and destructive.</span>
+    <span style="display:block;margin-bottom:2px;">② <strong style="color:var(--amber)">Publish to App Repo from DEV only.</strong> <code>sncicd-publish-app</code> must originate from a non-production (DEV) instance. TEST and PROD instances cannot publish to the App Repository. This is a platform constraint, not a convention.</span>
+    <span style="display:block;">③ <strong style="color:var(--cyan)">apply_remote_changes = active branch only.</strong> The API operates only on the branch <em>currently checked out</em> on the instance. Switch branch in Studio first, then trigger the action — or the wrong code gets applied.</span>
+  </div>
+</div>
+
+<div class="slabel">Branch → Instance Mapping <span class="pill">Hybrid — Source Control (DEV/TEST) · App Repository (PROD)</span></div>
+<div class="bim-grid">
+  <div class="bim-card bc-feature">
+    <div class="bim-head">💻 feature/* → DEV</div>
+    <div class="bim-body">
+      <div class="bim-row"><span class="dot"></span>Developer codes in Studio <span class="bim-chip">manual</span></div>
+      <div class="bim-row"><span class="dot"></span>Studio → Create Branch</div>
+      <div class="bim-row"><span class="dot"></span>Commit Changes → GitHub push</div>
+      <div class="bim-row"><span class="dot"></span>Open PR → develop</div>
+    </div>
+  </div>
+  <div class="bim-card bc-dev">
+    <div class="bim-head">🔵 develop → DEV Instance</div>
+    <div class="bim-body">
+      <div class="bim-row"><span class="dot"></span>Trigger: merge to develop <span class="bim-chip">auto</span></div>
+      <div class="bim-row"><span class="dot"></span>apply_remote_changes API</div>
+      <div class="bim-row"><span class="dot"></span>ATF smoke suite runs</div>
+      <div class="bim-row"><span class="dot"></span>Integration validation</div>
+    </div>
+  </div>
+  <div class="bim-card bc-test">
+    <div class="bim-head">🟡 release/* → TEST Instance</div>
+    <div class="bim-body">
+      <div class="bim-row"><span class="dot"></span>Trigger: release/* cut <span class="bim-chip">auto</span></div>
+      <div class="bim-row"><span class="dot"></span>Install from App Repo (official)</div>
+      <div class="bim-row"><span class="dot"></span>Full ATF regression suite</div>
+      <div class="bim-row" style="color:var(--red)"><span class="dot" style="background:var(--red)"></span>Auto-rollback if ATF fails 🔄</div>
+      <div class="bim-row"><span class="dot"></span>UAT sign-off + CHG raised</div>
+    </div>
+  </div>
+  <div class="bim-card bc-prod">
+    <div class="bim-head">🟢 main → App Repo → PROD</div>
+    <div class="bim-body">
+      <div class="bim-row"><span class="dot"></span>Publish App from DEV <span class="bim-chip">App Repo</span></div>
+      <div class="bim-row"><span class="dot"></span>sncicd-publish-app action</div>
+      <div class="bim-row"><span class="dot"></span>Install on PROD via App Mgr</div>
+      <div class="bim-row"><span class="dot"></span>sncicd-install-app on PROD</div>
+    </div>
+  </div>
+</div>
+
+<div class="slabel">Hybrid Deployment Flow <span class="pill">Source Control → App Repository → PROD Install</span></div>
+<div class="flow-outer">
+  <div class="flow-divider">
+    <div class="flow-divider-line"></div>
+    <span class="flow-divider-label fdl-sc">🔵 Source Control Zone — apply_remote_changes (DEV + TEST only)</span>
+    <div class="flow-divider-line"></div>
+  </div>
+  <div class="flow-strip">
+    <div class="fs-node">
+      <div class="fs-env" style="color:var(--blue)">💻 Developer</div>
+      <div class="fs-branch" style="background:var(--blue-dim);border-color:#1d3e5c;color:var(--blue)">feature/*</div>
+      <div class="fs-method">Studio on DEV<br>Commit → Push</div>
+    </div>
+    <div class="fs-arrow">
+      <svg width="28" height="14" viewBox="0 0 28 14"><line x1="0" y1="7" x2="22" y2="7" stroke="#a371f7" stroke-width="1.5" stroke-dasharray="4,2"/><path d="M18,3 L24,7 L18,11" stroke="#a371f7" stroke-width="1.5" fill="none"/></svg>
+      <div class="fs-arrow-label">PR + CI<br>2 reviews</div>
+    </div>
+    <div class="fs-node">
+      <div class="fs-env" style="color:var(--blue)">🔵 DEV Instance</div>
+      <div class="fs-branch" style="background:var(--purple-dim);border-color:#2d1e4e;color:var(--purple)">develop</div>
+      <div class="fs-method">apply_remote_changes<br>ATF smoke</div>
+    </div>
+    <div class="fs-arrow">
+      <svg width="28" height="14" viewBox="0 0 28 14"><line x1="0" y1="7" x2="22" y2="7" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4,2"/><path d="M18,3 L24,7 L18,11" stroke="#d29922" stroke-width="1.5" fill="none"/></svg>
+      <div class="fs-arrow-label">release/*<br>branch cut</div>
+    </div>
+    <div class="fs-node">
+      <div class="fs-env" style="color:var(--amber)">🟡 TEST Instance</div>
+      <div class="fs-branch" style="background:var(--amber-dim);border-color:#3d2e00;color:var(--amber)">release/*</div>
+      <div class="fs-method">apply_remote_changes<br>Full ATF regression</div>
+    </div>
+    <div class="fs-arrow">
+      <svg width="28" height="14" viewBox="0 0 28 14"><line x1="0" y1="7" x2="22" y2="7" stroke="#26c6a2" stroke-width="1.5" stroke-dasharray="4,2"/><path d="M18,3 L24,7 L18,11" stroke="#26c6a2" stroke-width="1.5" fill="none"/></svg>
+      <div class="fs-arrow-label">UAT pass<br>merge main</div>
+    </div>
+    <div class="app-repo-node">
+      <div class="arn-title">📦 App Repository</div>
+      <div class="arn-sub">sncicd-publish-app<br>from DEV instance<br>version tagged</div>
+    </div>
+    <div class="fs-arrow">
+      <svg width="28" height="14" viewBox="0 0 28 14"><line x1="0" y1="7" x2="22" y2="7" stroke="#26c6a2" stroke-width="2"/><path d="M18,3 L24,7 L18,11" stroke="#26c6a2" stroke-width="2" fill="none"/></svg>
+      <div class="fs-arrow-label">CAB approve<br>Install App</div>
+    </div>
+    <div class="fs-node">
+      <div class="fs-env" style="color:var(--teal)">🟢 PROD Instance</div>
+      <div class="fs-branch" style="background:var(--teal-dim);border-color:#0d3530;color:var(--teal)">App Manager</div>
+      <div class="fs-method">sncicd-install-app<br>ATF critical path</div>
+    </div>
+  </div>
+  <div class="flow-divider" style="margin-top:12px;margin-bottom:0">
+    <div class="flow-divider-line"></div>
+    <span class="flow-divider-label fdl-ar">🟢 App Repository Zone — Publish → Install (ServiceNow recommended for all PROD deployments)</span>
+    <div class="flow-divider-line"></div>
+  </div>
+</div>
+
+<div class="slabel">Official GitHub Actions Pipeline <span class="pill">ServiceNow/sncicd_githubworkflow · 3 Sequential Jobs</span></div>
+<div class="flow-outer" style="padding:14px 16px;">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;">
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+      <div style="padding:9px 12px;background:var(--blue-dim);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue);">⚙️ Job 1 — Build <span style="font-weight:400;font-size:9px;opacity:0.7">(PR + push)</span></div>
+      <div style="padding:8px 12px;display:flex;flex-direction:column;gap:5px;">
+        <div class="bim-row"><span class="dot" style="background:var(--blue)"></span>sncicd-apply-changes → DEV <span class="bim-chip" style="background:var(--blue-dim);border-color:#1d3e5c;color:var(--blue);">SC</span></div>
+        <div class="bim-row"><span class="dot" style="background:var(--teal)"></span>sncicd-publish-app → App Repo <span class="bim-chip" style="background:var(--teal-dim);border-color:#0d3530;color:var(--teal);">DEV only</span></div>
+        <div class="bim-row" style="font-family:var(--mono);font-size:9px;color:var(--cyan)">out: newVersion → job 2 &amp; 3</div>
+      </div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+      <div style="padding:9px 12px;background:var(--amber-dim);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:700;color:var(--amber);">🧪 Job 2 — Test <span style="font-weight:400;font-size:9px;opacity:0.7">(after build)</span></div>
+      <div style="padding:8px 12px;display:flex;flex-direction:column;gap:5px;">
+        <div class="bim-row"><span class="dot" style="background:var(--amber)"></span>sncicd-install-app → TEST</div>
+        <div class="bim-row"><span class="dot" style="background:var(--green)"></span>sncicd-run-atf-suite (full)</div>
+        <div class="bim-row" style="color:var(--red)"><span class="dot" style="background:var(--red)"></span>sncicd-rollback-app if ATF fails</div>
+      </div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:8px;overflow:hidden;">
+      <div style="padding:9px 12px;background:var(--teal-dim);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:700;color:var(--teal);">🚀 Job 3 — Deploy Prod <span style="font-weight:400;font-size:9px;opacity:0.7">(master only)</span></div>
+      <div style="padding:8px 12px;display:flex;flex-direction:column;gap:5px;">
+        <div class="bim-row" style="color:var(--amber)"><span class="dot" style="background:var(--amber)"></span>if: push to master/main only 🔒</div>
+        <div class="bim-row"><span class="dot" style="background:var(--teal)"></span>sncicd-install-app → PROD</div>
+        <div class="bim-row"><span class="dot" style="background:var(--green)"></span>ATF critical path post-install</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    <div style="padding:8px 12px;background:var(--amber-dim);border:1px solid var(--amber);border-radius:6px;font-size:10.5px;color:var(--muted);line-height:1.6;">
+      <strong style="color:var(--amber)">⚠ Publish constraint:</strong> <code>sncicd-publish-app</code> must run from <strong>DEV only</strong>. The App Repository rejects publishes from TEST or PROD. Build job always targets the non-production source instance.
+    </div>
+    <div style="padding:8px 12px;background:var(--cyan-dim);border:1px solid var(--cyan);border-radius:6px;font-size:10.5px;color:var(--muted);line-height:1.6;">
+      <strong style="color:var(--cyan)">ℹ Active-branch constraint:</strong> <code>apply_remote_changes</code> applies changes for the <strong>branch currently active</strong> on the instance. Ensure Studio is on the correct branch before the workflow runs.
+    </div>
+  </div>
+</div>
+
+<div class="slabel">Git Branch Strategy <span class="pill">Adapted Git Flow — App Repo publish points on main</span></div>
+<div class="git-graph">
+  <div class="gg-legend">
+    <div class="gg-legend-item"><span class="gg-legend-line" style="background:var(--green)"></span>main → triggers Publish to App Repo</div>
+    <div class="gg-legend-item"><span class="gg-legend-line" style="background:var(--amber)"></span>release/* → TEST (apply_remote_changes)</div>
+    <div class="gg-legend-item"><span class="gg-legend-line" style="background:var(--purple)"></span>develop → DEV (apply_remote_changes)</div>
+    <div class="gg-legend-item"><span class="gg-legend-line" style="background:var(--blue)"></span>feature/* → DEV (Studio)</div>
+    <div class="gg-legend-item"><span class="gg-legend-line" style="background:var(--red)"></span>hotfix/* → App Repo → PROD direct</div>
+    <div class="gg-legend-item"><span style="width:22px;height:10px;background:var(--teal-dim);border:1px solid var(--teal);border-radius:3px;display:inline-block"></span>📦 App Repo publish point</div>
+  </div>
+  <svg width="100%" height="200" viewBox="0 0 1060 200" preserveAspectRatio="xMinYMid meet" xmlns="http://www.w3.org/2000/svg">
+    <line x1="80" y1="25"  x2="1040" y2="25"  stroke="#3fb950" stroke-width="2"/>
+    <line x1="80" y1="75"  x2="750"  y2="75"  stroke="#d29922" stroke-width="2"/>
+    <line x1="80" y1="125" x2="1040" y2="125" stroke="#a371f7" stroke-width="2"/>
+    <line x1="80" y1="170" x2="560"  y2="170" stroke="#4d9de0" stroke-width="2"/>
+    <line x1="840" y1="25" x2="840" y2="75" stroke="#f85149" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="840" y1="75" x2="930" y2="75" stroke="#f85149" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="930" y1="75" x2="930" y2="25" stroke="#f85149" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="930" y1="75" x2="970" y2="125" stroke="#f85149" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+    <line x1="160" y1="170" x2="160" y2="125" stroke="#4d9de0" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="560" y1="170" x2="560" y2="125" stroke="#4d9de0" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="630" y1="125" x2="630" y2="75" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="750" y1="75"  x2="750" y2="25" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="690" y1="75"  x2="690" y2="125" stroke="#d29922" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+    <!-- App Repo publish markers -->
+    <rect x="736" y="13" width="76" height="16" rx="3" fill="#082820" stroke="#26c6a2" stroke-width="1"/>
+    <text x="774" y="24" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#26c6a2">📦 Publish v2.4</text>
+    <rect x="956" y="13" width="82" height="16" rx="3" fill="#082820" stroke="#f85149" stroke-width="1"/>
+    <text x="997" y="24" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#f85149">📦 Publish v2.4.1</text>
+    <!-- Commits main -->
+    <circle cx="120" cy="25" r="5" fill="#3fb950" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="750" cy="25" r="7" fill="#3fb950" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="930" cy="25" r="6" fill="#f85149" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="1020" cy="25" r="5" fill="#3fb950" stroke="#0a0c10" stroke-width="2"/>
+    <!-- Commits release -->
+    <circle cx="630" cy="75" r="5" fill="#d29922" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="670" cy="75" r="5" fill="#d29922" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="710" cy="75" r="5" fill="#d29922" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="750" cy="75" r="5" fill="#d29922" stroke="#0a0c10" stroke-width="2"/>
+    <text x="670" y="62" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#d29922">release/v2.4</text>
+    <!-- Commits develop -->
+    <circle cx="160"  cy="125" r="5" fill="#a371f7" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="320"  cy="125" r="5" fill="#a371f7" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="560"  cy="125" r="5" fill="#a371f7" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="690"  cy="125" r="5" fill="#d29922" stroke="#0a0c10" stroke-width="1.5"/>
+    <circle cx="880"  cy="125" r="5" fill="#a371f7" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="970"  cy="125" r="5" fill="#f85149" stroke="#0a0c10" stroke-width="1.5"/>
+    <text x="690" y="140" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7.5" fill="#d29922">back-merge</text>
+    <text x="970" y="140" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7.5" fill="#f85149">hotfix back</text>
+    <!-- Commits feature -->
+    <circle cx="160" cy="170" r="5" fill="#4d9de0" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="290" cy="170" r="5" fill="#4d9de0" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="420" cy="170" r="5" fill="#4d9de0" stroke="#0a0c10" stroke-width="2"/>
+    <circle cx="560" cy="170" r="5" fill="#4d9de0" stroke="#0a0c10" stroke-width="2"/>
+    <text x="360" y="187" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#4d9de0">feature/INC-1042</text>
+    <text x="885" y="187" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#f85149">hotfix/*</text>
+    <!-- Labels -->
+    <text x="8" y="29"  font-family="JetBrains Mono,monospace" font-size="9" fill="#768390">main</text>
+    <text x="8" y="79"  font-family="JetBrains Mono,monospace" font-size="9" fill="#768390">release</text>
+    <text x="8" y="129" font-family="JetBrains Mono,monospace" font-size="9" fill="#768390">develop</text>
+    <text x="8" y="174" font-family="JetBrains Mono,monospace" font-size="9" fill="#768390">feature</text>
+  </svg>
+</div>
+
+<div class="slabel">All Scenarios — Happy Path to Worst Case</div>
+<div class="scenario-grid">
+  <div class="sc-card sc-happy">
+    <div class="sc-head"><span class="sc-head-icon">✅</span>Happy Path</div>
+    <div class="sc-body">
+      <div class="sc-row">feature/* → PR → develop</div>
+      <div class="sc-row">CI passes, 2 reviews</div>
+      <div class="sc-row">apply_remote_changes → DEV</div>
+      <div class="sc-row">release/* → TEST full ATF</div>
+      <div class="sc-row">UAT pass → merge to main</div>
+      <div class="sc-row">📦 Publish to App Repo (DEV)</div>
+      <div class="sc-row">🟢 Install on PROD via App Mgr</div>
+    </div>
+    <div class="sc-footer">✓ App Repo = PROD mechanism</div>
+  </div>
+  <div class="sc-card sc-ci">
+    <div class="sc-head"><span class="sc-head-icon">🚨</span>CI Failure on PR</div>
+    <div class="sc-body">
+      <div class="sc-row">PR opened → CI triggers</div>
+      <div class="sc-row">Lint / test / CodeQL fails</div>
+      <div class="sc-row">PR blocked — cannot merge</div>
+      <div class="sc-row">Dev fixes same feature/*</div>
+      <div class="sc-row">CI re-runs on new commit</div>
+      <div class="sc-row">DEV instance untouched ✓</div>
+      <div class="sc-row">App Repo never reached</div>
+    </div>
+    <div class="sc-footer">⚠ Never bypass branch rules</div>
+  </div>
+  <div class="sc-card sc-defect">
+    <div class="sc-head"><span class="sc-head-icon">🐛</span>Defect in TEST</div>
+    <div class="sc-body">
+      <div class="sc-row">QA finds bug on TEST</div>
+      <div class="sc-row"><code>fix/*</code> cut from <code>release/*</code></div>
+      <div class="sc-row">Fix built on DEV, committed</div>
+      <div class="sc-row">PR: fix/* → release/*</div>
+      <div class="sc-row">Re-deploy TEST via SC</div>
+      <div class="sc-row">ATF re-run → UAT pass</div>
+      <div class="sc-row">Back-merge release → develop</div>
+    </div>
+    <div class="sc-footer">⚠ Back-merge mandatory</div>
+  </div>
+  <div class="sc-card sc-prod">
+    <div class="sc-head"><span class="sc-head-icon">🔥</span>PROD Incident</div>
+    <div class="sc-body">
+      <div class="sc-row">Alert fires after install</div>
+      <div class="sc-row">Find prev stable version</div>
+      <div class="sc-row">sncicd-rollback-app action</div>
+      <div class="sc-row">Rolls PROD to prior version</div>
+      <div class="sc-row">App Repo version history ✓</div>
+      <div class="sc-row">Fix via normal cycle after</div>
+      <div class="sc-row">Never touch PROD Studio 🚫</div>
+    </div>
+    <div class="sc-footer">🚫 Rollback = App Repo version</div>
+  </div>
+  <div class="sc-card sc-hotfix">
+    <div class="sc-head"><span class="sc-head-icon">⚡</span>Hotfix (PROD)</div>
+    <div class="sc-body">
+      <div class="sc-row"><code>hotfix/*</code> cut from <code>main</code></div>
+      <div class="sc-row">Fix built on DEV instance</div>
+      <div class="sc-row">Abbreviated TEST regression</div>
+      <div class="sc-row">hotfix/* → main (CAB)</div>
+      <div class="sc-row">📦 Publish hotfix to App Repo</div>
+      <div class="sc-row">🟢 Install on PROD (App Mgr)</div>
+      <div class="sc-row">Back-merge → develop ⚠</div>
+    </div>
+    <div class="sc-footer">⚠ Back-merge mandatory</div>
+  </div>
+</div>
+
+<div class="slabel">Non-Negotiable Rules</div>
+<div class="rules-grid">
+  <div class="rule-card">
+    <div class="rule-icon">🚫</div>
+    <div>
+      <div class="rule-title">Never use Source Control on PROD</div>
+      <div class="rule-body">ServiceNow docs are explicit: <code>apply_remote_changes</code> on PROD triggers cascade deletes of config data. App Repository is the only approved PROD deployment method.</div>
+    </div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-icon">📦</div>
+    <div>
+      <div class="rule-title">App Repo = PROD gateway</div>
+      <div class="rule-body">After TEST passes: merge to main → <code>sncicd-publish-app</code> from DEV (version tagged) → <code>sncicd-install-app</code> on PROD via GitHub Actions.</div>
+    </div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-icon">🔁</div>
+    <div>
+      <div class="rule-title">Back-merge every time</div>
+      <div class="rule-body">Release branch fix or hotfix must always back-merge to <code>develop</code>. Skip once and the same bug reappears guaranteed in the next release.</div>
+    </div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-icon">⏮️</div>
+    <div>
+      <div class="rule-title">PROD rollback = App Repo version</div>
+      <div class="rule-body">Use <code>sncicd-rollback-app</code> GitHub Action. App Repository maintains full version history — rollback to any prior published version in minutes.</div>
+    </div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-icon">🏗️</div>
+    <div>
+      <div class="rule-title">One scoped app, one repo</div>
+      <div class="rule-body">Source Control links at app level. Never mix multiple scoped apps in one repo. Each app gets its own GitHub repo, pipeline, and App Repo entry.</div>
+    </div>
+  </div>
+  <div class="rule-card">
+    <div class="rule-icon">🧪</div>
+    <div>
+      <div class="rule-title">ATF calibrated per environment</div>
+      <div class="rule-body">DEV → smoke only. TEST → full regression. PROD post-install → critical path only. Never run full regression suite after every PROD install.</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="footer-legend">
+    <div class="fl-item"><span class="fl-dot" style="background:var(--blue)"></span>feature/* · DEV Studio</div>
+    <div class="fl-item"><span class="fl-dot" style="background:var(--purple)"></span>develop → DEV (apply_remote_changes)</div>
+    <div class="fl-item"><span class="fl-dot" style="background:var(--amber)"></span>release/* → TEST (apply_remote_changes)</div>
+    <div class="fl-item"><span class="fl-dot" style="background:var(--teal)"></span>main → App Repo → PROD (Publish + Install)</div>
+    <div class="fl-item"><span class="fl-dot" style="background:var(--red)"></span>hotfix/* → App Repo → PROD emergency</div>
+  </div>
+  <div class="footer-note">7 Official SN GitHub Actions: sncicd-apply-changes · sncicd-publish-app · sncicd-install-app · sncicd-rollback-app · sncicd-run-atf-test-suite · sncicd-activate-plugin · sncicd-rollback-plugin · CHG · CAB</div>
+</div>
+
+</body>
+</html>
